@@ -2,8 +2,10 @@ import asyncio
 from typing import List, Optional, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from config.settings import settings
-from models.player import Player
-from models.processed_match import ProcessedMatch
+from models.player import PlayerModel
+from models.processed_match import ProcessedMatchModel
+from datetime import datetime
+from bson import ObjectId
 
 class StorageService:
     def __init__(self):
@@ -54,16 +56,9 @@ class StorageService:
                 # Index might already exist or fail, continue
                 pass
             
-            # Index on match IDs for faster duplicate checking
-            # Handle both camelCase (matchId) and snake_case (match_id) formats
+            # Index on match IDs for faster duplicate checking (using snake_case only)
             try:
                 await self.processed_matches_collection.create_index("match_id", unique=True, sparse=True)
-            except Exception:
-                # Index might already exist or fail, continue
-                pass
-            
-            try:
-                await self.processed_matches_collection.create_index("matchId", unique=True, sparse=True)
             except Exception:
                 # Index might already exist or fail, continue
                 pass
@@ -78,7 +73,7 @@ class StorageService:
             self.client.close()
     
     # Player operations
-    async def add_player(self, player: Player) -> bool:
+    async def add_player(self, player: PlayerModel) -> bool:
         """Add a new player to monitoring"""
         try:
             # Use upsert to avoid duplicates, query by actual database field names
@@ -86,11 +81,11 @@ class StorageService:
                 {
                     "$or": [
                         {"name": player.name},
-                        {"pubgId": player.pubg_id},  # Use actual database field name
-                        {"pubg_id": player.pubg_id}  # Fallback for legacy data
+                        {"pubgId": player.pubgId},  # Use actual database field name
+                        {"pubg_id": player.pubgId}  # Fallback for legacy data
                     ]
                 },
-                {"$set": player.to_dict()},
+                {"$set": player.dict(by_alias=True, exclude={"id"})},
                 upsert=True
             )
             print(f"Added player {player.name} to monitoring")
@@ -113,40 +108,40 @@ class StorageService:
             print(f"Failed to remove player {player_name}: {e}")
             return False
     
-    async def get_player_by_name(self, player_name: str) -> Optional[Player]:
+    async def get_player_by_name(self, player_name: str) -> Optional[PlayerModel]:
         """Get a player by name"""
         try:
             doc = await self.players_collection.find_one({"name": player_name})
             if doc:
-                return Player.from_dict(doc)
+                return PlayerModel(**doc)
             return None
         except Exception as e:
             print(f"Failed to get player {player_name}: {e}")
             return None
     
-    async def get_all_players(self) -> List[Player]:
+    async def get_all_players(self) -> List[PlayerModel]:
         """Get all monitored players"""
         try:
             players = []
             async for doc in self.players_collection.find():
-                players.append(Player.from_dict(doc))
+                players.append(PlayerModel(**doc))
             return players
         except Exception as e:
             print(f"Failed to get all players: {e}")
             return []
     
-    async def update_player(self, player: Player) -> bool:
+    async def update_player(self, player: PlayerModel) -> bool:
         """Update player information"""
         try:
             # Query using actual database field names (prioritize camelCase)
             result = await self.players_collection.replace_one(
                 {
                     "$or": [
-                        {"pubgId": player.pubg_id},  # Use actual database field name
-                        {"pubg_id": player.pubg_id}  # Fallback for legacy data
+                        {"pubgId": player.pubgId},  # Use actual database field name
+                        {"pubg_id": player.pubgId}  # Fallback for legacy data
                     ]
                 },
-                player.to_dict()
+                player.dict(by_alias=True, exclude={"id"})
             )
             return result.modified_count > 0
         except Exception as e:
@@ -157,13 +152,8 @@ class StorageService:
     async def is_match_processed(self, match_id: str) -> bool:
         """Check if a match has already been processed"""
         try:
-            # Query for both camelCase (matchId) and snake_case (match_id) for backward compatibility
-            doc = await self.processed_matches_collection.find_one({
-                "$or": [
-                    {"match_id": match_id},
-                    {"matchId": match_id}
-                ]
-            })
+            # Query using camelCase format
+            doc = await self.processed_matches_collection.find_one({"matchId": match_id})
             return doc is not None
         except Exception as e:
             print(f"Failed to check if match {match_id} is processed: {e}")
@@ -172,16 +162,15 @@ class StorageService:
     async def mark_match_processed(self, match_id: str) -> bool:
         """Mark a match as processed"""
         try:
-            processed_match = ProcessedMatch(match_id)
-            # Use upsert to avoid duplicates if both formats exist
+            if not match_id or match_id.strip() == "":
+                print(f"Invalid match_id provided: {match_id}")
+                return False
+                
+            processed_match = ProcessedMatchModel(matchId=match_id)
+            # Use upsert with camelCase format
             await self.processed_matches_collection.update_one(
-                {
-                    "$or": [
-                        {"match_id": match_id},
-                        {"matchId": match_id}
-                    ]
-                },
-                {"$set": processed_match.to_dict()},
+                {"matchId": match_id},
+                {"$set": processed_match.dict(by_alias=True, exclude={"id"})},
                 upsert=True
             )
             return True
@@ -189,12 +178,12 @@ class StorageService:
             print(f"Failed to mark match {match_id} as processed: {e}")
             return False
     
-    async def get_processed_matches(self, limit: int = 100) -> List[ProcessedMatch]:
+    async def get_processed_matches(self, limit: int = 100) -> List[ProcessedMatchModel]:
         """Get recently processed matches"""
         try:
             processed_matches = []
-            async for doc in self.processed_matches_collection.find().sort("processed_at", -1).limit(limit):
-                processed_matches.append(ProcessedMatch.from_dict(doc))
+            async for doc in self.processed_matches_collection.find().sort("processedAt", -1).limit(limit):
+                processed_matches.append(ProcessedMatchModel(**doc))
             return processed_matches
         except Exception as e:
             print(f"Failed to get processed matches: {e}")

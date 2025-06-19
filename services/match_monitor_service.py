@@ -75,7 +75,7 @@ class MatchMonitorService:
         player_matches = {}
         
         # Group players for batch API requests (PUBG API supports multiple players)
-        player_names = [player.name for player in players]
+        player_names = [player.name for player in players if player.name]
         
         try:
             # Get player data with recent matches
@@ -145,9 +145,9 @@ class MatchMonitorService:
             monitored_player_name_to_id = {}
             
             for player in players:
-                if player.name in monitored_players:
-                    monitored_player_ids.append(player.pubg_id)
-                    monitored_player_name_to_id[player.name] = player.pubg_id
+                if player.name and player.name in monitored_players:
+                    monitored_player_ids.append(player.pubgId)
+                    monitored_player_name_to_id[player.name] = player.pubgId
             
             # Get squad members (all players in the roster containing monitored players)
             squad_members = match.get_squad_members(monitored_player_ids)

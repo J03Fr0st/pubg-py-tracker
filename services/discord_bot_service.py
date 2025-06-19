@@ -6,7 +6,7 @@ from datetime import datetime
 from config.settings import settings
 from services.storage_service import storage_service
 from services.pubg_api_service import pubg_api_service
-from models.player import Player
+from models.player import PlayerModel
 from utils.mappings import MAP_NAMES, GAME_MODES, generate_match_color
 # from pubg_types.telemetry_types import ProcessedTelemetryEvent
 
@@ -22,21 +22,29 @@ class DiscordBotService(commands.Bot):
         )
         
         self.channel_id = settings.DISCORD_CHANNEL_ID
-        self.target_channel: Optional[discord.TextChannel] = None
+        self.target_channel = None
         
     async def setup_hook(self):
         """Setup hook called when bot is ready"""
         print(f"Bot logged in as {self.user}")
         
-        # Get all channels
-        channels = await self.fetch_channels()
-        for channel in channels:
-            print(f"Channel: {channel.name} - {channel.id}")
+        # Get all channels from all guilds
+        print("Available channels:")
+        for guild in self.guilds:
+            print(f"Guild: {guild.name} ({guild.id})")
+            for channel in guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    print(f"  Channel: {channel.name} - {channel.id}")
         
         # Get target channel
         self.target_channel = self.get_channel(self.channel_id)
         if not self.target_channel:
             print(f"Warning: Could not find channel with ID {self.channel_id}")
+            print("Make sure the bot has access to the channel and the ID is correct")
+        elif isinstance(self.target_channel, discord.TextChannel):
+            print(f"✓ Found target channel: {self.target_channel.name}")
+        else:
+            print(f"Warning: Channel {self.channel_id} is not a text channel")
         
         # Sync slash commands
         try:
@@ -52,8 +60,8 @@ class DiscordBotService(commands.Bot):
         telemetry_events: List[Dict[str, Any]]
     ):
         """Send match summary to Discord channel"""
-        if not self.target_channel:
-            print("No target channel configured")
+        if not self.target_channel or not isinstance(self.target_channel, discord.TextChannel):
+            print("No valid text channel configured")
             return
         
         try:
@@ -261,13 +269,16 @@ async def add_player(interaction: discord.Interaction, playername: str):
         pubg_player = players[0]
         
         # Create and save player
-        player = Player(pubg_player['id'], pubg_player['name'], pubg_player['shard_id'])
-        player.update_from_api({"attributes": {
-            "patchVersion": pubg_player['patch_version'],
-            "titleId": pubg_player['title_id'],
-            "createdAt": pubg_player['created_at'],
-            "updatedAt": pubg_player['updated_at']
-        }})
+        player = PlayerModel(
+            pubgId=pubg_player['id'],
+            name=pubg_player['name'],
+            shardId=pubg_player['shard_id'],
+            patchVersion=pubg_player['patch_version'],
+            titleId=pubg_player['title_id'],
+            createdAt=datetime.fromisoformat(pubg_player['created_at'].replace("Z", "+00:00")) if pubg_player['created_at'] else datetime.utcnow(),
+            updatedAt=datetime.fromisoformat(pubg_player['updated_at'].replace("Z", "+00:00")) if pubg_player['updated_at'] else datetime.utcnow(),
+            matches=[]
+        )
         
         success = await storage_service.add_player(player)
         if success:

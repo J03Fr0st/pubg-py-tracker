@@ -10,7 +10,7 @@ from datetime import datetime
 from config.settings import settings
 from services.storage_service import storage_service
 from services.pubg_api_service import pubg_api_service
-from models.player import Player
+from models.player import PlayerModel
 
 async def debug_storage_service():
     """Test MongoDB connection and operations"""
@@ -26,8 +26,8 @@ async def debug_storage_service():
         print(f"✅ Found {len(players)} players in database")
         
         for player in players:
-            print(f"  - {player.name} ({player.pubg_id})")
-            print(f"    Matches: {len(player.matches)}")
+            print(f"  - {player.name} ({player.pubgId})")
+            print(f"    Matches: {len(player.matches or [])}")
         
         # Test checking processed matches
         is_processed = await storage_service.is_match_processed("test-match-id")
@@ -105,6 +105,9 @@ async def debug_match_processing():
         
         # Get recent matches for first player
         first_player = players[0]
+        if not first_player.name:
+            print("❌ First player has no name")
+            return
         player_names = [first_player.name]
         
         api_players = await pubg_api_service.get_players_by_names(player_names)
