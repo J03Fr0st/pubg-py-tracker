@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug PUBG Bot",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "args": []
+        },
+        {
+            "name": "Debug PUBG Bot (Detailed)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "logToFile": true,
+            "debugOptions": [
+                "RedirectOutput"
+            ],
+            "args": []
+        },
+        {
+            "name": "Debug MongoDB Test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/debug_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false,
+            "args": []
+        },
+        {
+            "name": "Debug Single Service",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/debug_service.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": true,
+            "args": []
+        }
+    ]
+} 

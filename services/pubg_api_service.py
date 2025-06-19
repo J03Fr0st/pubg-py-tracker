@@ -10,11 +10,18 @@ from datetime import datetime, timezone
 
 class PubgApiService:
     def __init__(self):
-        self.base_url = settings.PUBG_API_URL
+        # Clean up base URL - remove any trailing /shards if present
+        base_url = settings.PUBG_API_URL.rstrip('/')
+        if base_url.endswith('/shards'):
+            base_url = base_url[:-7]  # Remove '/shards'
+        
+        self.base_url = base_url
         self.api_key = settings.PUBG_API_KEY
         self.shard = settings.PUBG_SHARD
         self.rate_limiter = RateLimiter(settings.PUBG_MAX_REQUESTS_PER_MINUTE)
         self.session: Optional[aiohttp.ClientSession] = None
+        
+        print(f"PUBG API initialized with base URL: {self.base_url}")
         
     async def initialize(self):
         """Initialize the HTTP session"""
@@ -27,7 +34,7 @@ class PubgApiService:
                 'Accept-Encoding': 'gzip'
             }
         )
-        print("PUBG API service initialized")
+        print("✓ PUBG API service initialized")
     
     async def close(self):
         """Close the HTTP session"""
@@ -36,6 +43,10 @@ class PubgApiService:
     
     async def _make_request(self, url: str, retries: int = 3) -> Optional[Dict[str, Any]]:
         """Make an HTTP request with rate limiting and retries"""
+        if not self.session:
+            print("HTTP session not initialized")
+            return None
+            
         for attempt in range(retries):
             try:
                 # Wait for rate limiter
@@ -170,15 +181,25 @@ class PubgApiService:
             return None
         
         try:
-            # Telemetry doesn't require API key, but it's gzip compressed
+            # Telemetry doesn't require API key, but may or may not be gzip compressed
             async with aiohttp.ClientSession() as session:
                 async with session.get(telemetry_url) as response:
                     if response.status == 200:
-                        # Data is gzip compressed
-                        compressed_data = await response.read()
-                        decompressed_data = gzip.decompress(compressed_data)
-                        telemetry_data = json.loads(decompressed_data.decode('utf-8'))
-                        return telemetry_data
+                        raw_data = await response.read()
+                        
+                        # Try to parse as JSON directly first (uncompressed)
+                        try:
+                            telemetry_data = json.loads(raw_data.decode('utf-8'))
+                            return telemetry_data
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            # If that fails, try gzip decompression
+                            try:
+                                decompressed_data = gzip.decompress(raw_data)
+                                telemetry_data = json.loads(decompressed_data.decode('utf-8'))
+                                return telemetry_data
+                            except (gzip.BadGzipFile, json.JSONDecodeError, UnicodeDecodeError) as e:
+                                print(f"Failed to parse telemetry data: {e}")
+                                return None
                     else:
                         print(f"Failed to fetch telemetry: HTTP {response.status}")
                         return None

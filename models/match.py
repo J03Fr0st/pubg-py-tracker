@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from pubg_types.pubg_types import PubgMatch, PubgParticipant, PubgRoster
 
 class Match:
     def __init__(self, match_id: str):
@@ -16,18 +15,18 @@ class Match:
         self.telemetry_url = ""
         
     @classmethod
-    def from_pubg_api(cls, pubg_match, included_data: List[Dict[str, Any]]) -> 'Match':
+    def from_pubg_api(cls, pubg_match: Dict[str, Any], included_data: List[Dict[str, Any]]) -> 'Match':
         """Create Match from PUBG API response data"""
-        match = cls(pubg_match.id)
-        match.map_name = pubg_match.map_name
-        match.game_mode = pubg_match.game_mode
-        match.duration = pubg_match.duration
-        match.custom_match = pubg_match.custom_match
-        match.shard_id = pubg_match.shard_id
+        match = cls(pubg_match['id'])
+        match.map_name = pubg_match['map_name']
+        match.game_mode = pubg_match['game_mode']
+        match.duration = pubg_match['duration']
+        match.custom_match = pubg_match['custom_match']
+        match.shard_id = pubg_match['shard_id']
         
         # Parse created_at timestamp
         try:
-            match.created_at = datetime.fromisoformat(pubg_match.created_at.replace("Z", "+00:00"))
+            match.created_at = datetime.fromisoformat(pubg_match['created_at'].replace("Z", "+00:00"))
         except:
             match.created_at = datetime.utcnow()
         
@@ -66,7 +65,7 @@ class Match:
                     match.telemetry_url = attributes.get("URL", "")
         
         # Build rosters with their participants
-        for roster_id in pubg_match.roster_ids:
+        for roster_id in pubg_match['roster_ids']:
             if roster_id in rosters_by_id:
                 roster = rosters_by_id[roster_id]
                 roster_data = {

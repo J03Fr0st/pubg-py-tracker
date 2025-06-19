@@ -8,7 +8,7 @@ from services.storage_service import storage_service
 from services.pubg_api_service import pubg_api_service
 from models.player import Player
 from utils.mappings import MAP_NAMES, GAME_MODES, generate_match_color
-from pubg_types.telemetry_types import ProcessedTelemetryEvent
+# from pubg_types.telemetry_types import ProcessedTelemetryEvent
 
 class DiscordBotService(commands.Bot):
     def __init__(self):
@@ -28,6 +28,11 @@ class DiscordBotService(commands.Bot):
         """Setup hook called when bot is ready"""
         print(f"Bot logged in as {self.user}")
         
+        # Get all channels
+        channels = await self.fetch_channels()
+        for channel in channels:
+            print(f"Channel: {channel.name} - {channel.id}")
+        
         # Get target channel
         self.target_channel = self.get_channel(self.channel_id)
         if not self.target_channel:
@@ -44,7 +49,7 @@ class DiscordBotService(commands.Bot):
         self, 
         match_data: Dict[str, Any], 
         squad_members: List[Dict[str, Any]],
-        telemetry_events: List[ProcessedTelemetryEvent]
+        telemetry_events: List[Dict[str, Any]]
     ):
         """Send match summary to Discord channel"""
         if not self.target_channel:
@@ -134,7 +139,7 @@ class DiscordBotService(commands.Bot):
         self, 
         player_data: Dict[str, Any], 
         match_id: str,
-        telemetry_events: List[ProcessedTelemetryEvent]
+        telemetry_events: List[Dict[str, Any]]
     ) -> discord.Embed:
         """Create a player-specific embed"""
         stats = player_data.get("stats", {})
@@ -176,20 +181,20 @@ class DiscordBotService(commands.Bot):
         # Add telemetry events
         player_events = [
             event for event in telemetry_events 
-            if event.actor == player_name or event.target == player_name
+            if event['actor'] == player_name or event['target'] == player_name
         ]
         
         if player_events:
             description += "\n*** KILLS & DBNOs ***"
             for event in player_events:
-                if event.actor == player_name:  # Player performed the action
-                    if event.event_type == 'kill':
+                if event['actor'] == player_name:  # Player performed the action
+                    if event['event_type'] == 'kill':
                         icon = "⚔️ Killed"
                     else:
                         icon = "🔻 Knocked"
                     
-                    target_link = f"[{event.target}](https://pubg.op.gg/user/{event.target})"
-                    description += f"\n`{event.match_time}` {icon} - {target_link} ({event.weapon}, {round(event.distance)}m)"
+                    target_link = f"[{event['target']}](https://pubg.op.gg/user/{event['target']})"
+                    description += f"\n`{event['match_time']}` {icon} - {target_link} ({event['weapon']}, {round(event['distance'])}m)"
         
         embed = discord.Embed(
             title=f"Player: {player_name}",
@@ -256,12 +261,12 @@ async def add_player(interaction: discord.Interaction, playername: str):
         pubg_player = players[0]
         
         # Create and save player
-        player = Player(pubg_player.id, pubg_player.name, pubg_player.shard_id)
+        player = Player(pubg_player['id'], pubg_player['name'], pubg_player['shard_id'])
         player.update_from_api({"attributes": {
-            "patchVersion": pubg_player.patch_version,
-            "titleId": pubg_player.title_id,
-            "createdAt": pubg_player.created_at,
-            "updatedAt": pubg_player.updated_at
+            "patchVersion": pubg_player['patch_version'],
+            "titleId": pubg_player['title_id'],
+            "createdAt": pubg_player['created_at'],
+            "updatedAt": pubg_player['updated_at']
         }})
         
         success = await storage_service.add_player(player)
