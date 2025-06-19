@@ -1,5 +1,136 @@
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from dataclasses import dataclass
+
+@dataclass
+class MatchReference:
+    """Match reference from player relationships"""
+    type: str
+    id: str
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'MatchReference':
+        return cls(
+            type=data.get('type', ''),
+            id=data.get('id', '')
+        )
+
+@dataclass
+class RelationshipData:
+    """Relationship data containing match references"""
+    data: List[MatchReference]
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'RelationshipData':
+        match_refs = [
+            MatchReference.from_dict(match_data) 
+            for match_data in data.get('data', [])
+        ]
+        return cls(data=match_refs)
+
+@dataclass
+class PlayerAttributes:
+    """Player attributes from PUBG API"""
+    name: str
+    shard_id: str
+    created_at: str
+    updated_at: str
+    patch_version: str
+    title_id: str
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PlayerAttributes':
+        return cls(
+            name=data.get('name', ''),
+            shard_id=data.get('shardId', ''),
+            created_at=data.get('createdAt', ''),
+            updated_at=data.get('updatedAt', ''),
+            patch_version=data.get('patchVersion', ''),
+            title_id=data.get('titleId', '')
+        )
+
+@dataclass
+class PlayerData:
+    """Individual player data from PUBG API"""
+    type: str
+    id: str
+    attributes: PlayerAttributes
+    matches: RelationshipData
+    links: Optional[Dict[str, str]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PlayerData':
+        attributes = PlayerAttributes.from_dict(data.get('attributes', {}))
+        relationships = data.get('relationships', {})
+        matches = RelationshipData.from_dict(relationships.get('matches', {}))
+        
+        return cls(
+            type=data.get('type', ''),
+            id=data.get('id', ''),
+            attributes=attributes,
+            matches=matches,
+            links=data.get('links')
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary format used by the rest of the application"""
+        match_ids = [match.id for match in self.matches.data]
+        return {
+            'id': self.id,
+            'type': self.type,
+            'name': self.attributes.name,
+            'shard_id': self.attributes.shard_id,
+            'patch_version': self.attributes.patch_version,
+            'title_id': self.attributes.title_id,
+            'created_at': self.attributes.created_at,
+            'updated_at': self.attributes.updated_at,
+            'match_ids': match_ids
+        }
+
+@dataclass
+class PlayersResponse:
+    """Root players response from PUBG API"""
+    data: List[PlayerData]
+    links: Optional[Dict[str, str]] = None
+    meta: Optional[Dict[str, Any]] = None
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PlayersResponse':
+        players = [
+            PlayerData.from_dict(player_data) 
+            for player_data in data.get('data', [])
+        ]
+        return cls(
+            data=players,
+            links=data.get('links'),
+            meta=data.get('meta')
+        )
+
+# Legacy classes for backward compatibility
+@dataclass
+class PubgMatch:
+    id: str
+    map_name: str
+    game_mode: str
+    created_at: str
+    duration: int
+    custom_match: bool
+    shard_id: str
+    roster_ids: List[str]
+    asset_ids: List[str]
+
+@dataclass
+class PubgParticipant:
+    id: str
+    name: str
+    player_id: str
+    stats: Dict[str, Any]
+
+@dataclass
+class PubgRoster:
+    id: str
+    rank: int
+    team_id: int
+    participant_ids: List[str]
 
 class PubgApiResponse:
     def __init__(self, data: Dict[str, Any]):
@@ -25,82 +156,6 @@ class PubgPlayer:
         matches = relationships.get('matches', {})
         match_data = matches.get('data', [])
         self.match_ids = [match.get('id', '') for match in match_data]
-
-class PubgMatch:
-    def __init__(self, data: Dict[str, Any]):
-        self.id = data.get('id', '')
-        self.type = data.get('type', '')
-        attributes = data.get('attributes', {})
-        self.map_name = attributes.get('mapName', '')
-        self.game_mode = attributes.get('gameMode', '')
-        self.created_at = attributes.get('createdAt', '')
-        self.duration = attributes.get('duration', 0)
-        self.custom_match = attributes.get('isCustomMatch', False)
-        self.shard_id = attributes.get('shardId', '')
-        
-        # Parse relationships
-        relationships = data.get('relationships', {})
-        
-        # Rosters
-        rosters = relationships.get('rosters', {})
-        roster_data = rosters.get('data', [])
-        self.roster_ids = [roster.get('id', '') for roster in roster_data]
-        
-        # Assets (for telemetry)
-        assets = relationships.get('assets', {})
-        asset_data = assets.get('data', [])
-        self.asset_ids = [asset.get('id', '') for asset in asset_data]
-
-class PubgParticipant:
-    def __init__(self, data: Dict[str, Any]):
-        self.id = data.get('id', '')
-        self.type = data.get('type', '')
-        attributes = data.get('attributes', {})
-        self.actor = attributes.get('actor', '')
-        self.shard_id = attributes.get('shardId', '')
-        
-        # Stats
-        stats = attributes.get('stats', {})
-        self.assists = stats.get('assists', 0)
-        self.boosts = stats.get('boosts', 0)
-        self.damage_dealt = stats.get('damageDealt', 0)
-        self.dbnos = stats.get('DBNOs', 0)
-        self.headshot_kills = stats.get('headshotKills', 0)
-        self.heals = stats.get('heals', 0)
-        self.kill_place = stats.get('killPlace', 0)
-        self.kill_streaks = stats.get('killStreaks', 0)
-        self.kills = stats.get('kills', 0)
-        self.longest_kill = stats.get('longestKill', 0)
-        self.name = stats.get('name', '')
-        self.player_id = stats.get('playerId', '')
-        self.revives = stats.get('revives', 0)
-        self.ride_distance = stats.get('rideDistance', 0)
-        self.road_kills = stats.get('roadKills', 0)
-        self.swim_distance = stats.get('swimDistance', 0)
-        self.team_kills = stats.get('teamKills', 0)
-        self.time_survived = stats.get('timeSurvived', 0)
-        self.vehicle_destroys = stats.get('vehicleDestroys', 0)
-        self.walk_distance = stats.get('walkDistance', 0)
-        self.weapons_acquired = stats.get('weaponsAcquired', 0)
-        self.win_place = stats.get('winPlace', 0)
-
-class PubgRoster:
-    def __init__(self, data: Dict[str, Any]):
-        self.id = data.get('id', '')
-        self.type = data.get('type', '')
-        attributes = data.get('attributes', {})
-        self.shard_id = attributes.get('shardId', '')
-        
-        # Stats
-        stats = attributes.get('stats', {})
-        self.rank = stats.get('rank', 0)
-        self.team_id = stats.get('teamId', 0)
-        
-        # Parse participant relationships
-        relationships = data.get('relationships', {})
-        participants = relationships.get('participants', {})
-        participant_data = participants.get('data', [])
-        self.participant_ids = [participant.get('id', '') for participant in participant_data]
 
 class PubgAsset:
     def __init__(self, data: Dict[str, Any]):

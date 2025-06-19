@@ -7,6 +7,8 @@ from config.settings import settings
 from utils.rate_limiter import RateLimiter
 from utils.mappings import DAMAGE_CAUSER_NAME
 from datetime import datetime, timezone
+from pubg_types.pubg_types import PlayersResponse
+from pubg_types.telemetry_types import LogPlayerKillV2, LogPlayerMakeGroggy, ProcessedTelemetryEvent
 
 class PubgApiService:
     def __init__(self):
@@ -103,31 +105,46 @@ class PubgApiService:
         if not data:
             return []
         
-        players = []
-        
-        for player_data in data.get('data', []):
-            if player_data.get('type') == 'player':
-                # Create player object manually
-                attributes = player_data.get('attributes', {})
-                relationships = player_data.get('relationships', {})
-                matches = relationships.get('matches', {})
-                match_data = matches.get('data', [])
-                match_ids = [match.get('id', '') for match in match_data]
-                
-                player = {
-                    'id': player_data.get('id', ''),
-                    'type': player_data.get('type', ''),
-                    'name': attributes.get('name', ''),
-                    'shard_id': attributes.get('shardId', ''),
-                    'patch_version': attributes.get('patchVersion', ''),
-                    'title_id': attributes.get('titleId', ''),
-                    'created_at': attributes.get('createdAt', ''),
-                    'updated_at': attributes.get('updatedAt', ''),
-                    'match_ids': match_ids
-                }
-                players.append(player)
-        
-        return players
+        try:
+            # Use the new PlayersResponse class to parse the response
+            players_response = PlayersResponse.from_dict(data)
+            
+            # Convert to the dictionary format expected by the rest of the application
+            players = []
+            for player_data in players_response.data:
+                if player_data.type == 'player':
+                    players.append(player_data.to_dict())
+            
+            return players
+            
+        except Exception as e:
+            print(f"Error parsing players response with new types: {e}")
+            # Fallback to the old parsing method
+            players = []
+            
+            for player_data in data.get('data', []):
+                if player_data.get('type') == 'player':
+                    # Create player object manually
+                    attributes = player_data.get('attributes', {})
+                    relationships = player_data.get('relationships', {})
+                    matches = relationships.get('matches', {})
+                    match_data = matches.get('data', [])
+                    match_ids = [match.get('id', '') for match in match_data]
+                    
+                    player = {
+                        'id': player_data.get('id', ''),
+                        'type': player_data.get('type', ''),
+                        'name': attributes.get('name', ''),
+                        'shard_id': attributes.get('shardId', ''),
+                        'patch_version': attributes.get('patchVersion', ''),
+                        'title_id': attributes.get('titleId', ''),
+                        'created_at': attributes.get('createdAt', ''),
+                        'updated_at': attributes.get('updatedAt', ''),
+                        'match_ids': match_ids
+                    }
+                    players.append(player)
+            
+            return players
     
     async def get_match(self, match_id: str) -> Optional[Tuple[Dict[str, Any], List[Dict[str, Any]]]]:
         """Get match details including all included data"""
@@ -228,17 +245,32 @@ class PubgApiService:
         for event_data in telemetry_data:
             event_type = event_data.get('_T', '')
             
-            # Process kill events
-            if event_type == 'LogPlayerKillV2':
-                event = self._process_kill_event(event_data, monitored_player_names, match_start)
-                if event:
-                    events.append(event)
-            
-            # Process knock events
-            elif event_type == 'LogPlayerMakeGroggy':
-                event = self._process_knock_event(event_data, monitored_player_names, match_start)
-                if event:
-                    events.append(event)
+            try:
+                # Process kill events using new structured types
+                if event_type == 'LogPlayerKillV2':
+                    kill_event = LogPlayerKillV2.from_dict(event_data)
+                    processed_event = self._process_kill_event_v2(kill_event, monitored_player_names, match_start)
+                    if processed_event:
+                        events.append(processed_event.to_dict())
+                
+                # Process knock events using new structured types
+                elif event_type == 'LogPlayerMakeGroggy':
+                    knock_event = LogPlayerMakeGroggy.from_dict(event_data)
+                    processed_event = self._process_knock_event_v2(knock_event, monitored_player_names, match_start)
+                    if processed_event:
+                        events.append(processed_event.to_dict())
+                        
+            except Exception as e:
+                print(f"Error processing telemetry event {event_type}: {e}")
+                # Fallback to old processing method
+                if event_type == 'LogPlayerKillV2':
+                    event = self._process_kill_event(event_data, monitored_player_names, match_start)
+                    if event:
+                        events.append(event)
+                elif event_type == 'LogPlayerMakeGroggy':
+                    event = self._process_knock_event(event_data, monitored_player_names, match_start)
+                    if event:
+                        events.append(event)
         
         # Sort events by timestamp
         events.sort(key=lambda x: x['timestamp'])
@@ -356,6 +388,92 @@ class PubgApiService:
             
         except Exception as e:
             print(f"Error processing knock event: {e}")
+            return None
+    
+    def _process_kill_event_v2(
+        self, 
+        event: LogPlayerKillV2, 
+        monitored_player_names: List[str],
+        match_start: datetime
+    ) -> Optional[ProcessedTelemetryEvent]:
+        """Process a LogPlayerKillV2 event using structured types"""
+        try:
+            # Determine the actor (prefer finisher, then killer)
+            actor_name = ""
+            if event.finisher:
+                actor_name = event.finisher.name
+            elif event.killer:
+                actor_name = event.killer.name
+            
+            victim_name = event.victim.name
+            
+            # Only include events involving monitored players
+            is_monitored = (
+                actor_name in monitored_player_names or 
+                victim_name in monitored_player_names
+            )
+            
+            if not is_monitored:
+                return None
+            
+            # Calculate match time
+            try:
+                event_time = datetime.fromisoformat(event.timestamp.replace('Z', '+00:00'))
+                match_elapsed = event_time - match_start
+                match_time_seconds = int(match_elapsed.total_seconds())
+                match_time_str = f"{match_time_seconds // 60:02d}:{match_time_seconds % 60:02d}"
+            except:
+                match_time_str = "00:00"
+            
+            # Get weapon name from damage info
+            weapon = "Unknown"
+            if event.finish_damage_info:
+                weapon = DAMAGE_CAUSER_NAME.get(event.finish_damage_info.damage_causer_name, event.finish_damage_info.damage_causer_name)
+            elif event.killer_damage_info:
+                weapon = DAMAGE_CAUSER_NAME.get(event.killer_damage_info.damage_causer_name, event.killer_damage_info.damage_causer_name)
+            
+            return ProcessedTelemetryEvent.from_kill_event(event, match_time_str, monitored_player_names, weapon)
+            
+        except Exception as e:
+            print(f"Error processing LogPlayerKillV2: {e}")
+            return None
+    
+    def _process_knock_event_v2(
+        self, 
+        event: LogPlayerMakeGroggy, 
+        monitored_player_names: List[str],
+        match_start: datetime
+    ) -> Optional[ProcessedTelemetryEvent]:
+        """Process a LogPlayerMakeGroggy event using structured types"""
+        try:
+            attacker_name = event.attacker.name
+            victim_name = event.victim.name
+            
+            # Only include events involving monitored players
+            is_monitored = (
+                attacker_name in monitored_player_names or 
+                victim_name in monitored_player_names
+            )
+            
+            if not is_monitored:
+                return None
+            
+            # Calculate match time
+            try:
+                event_time = datetime.fromisoformat(event.timestamp.replace('Z', '+00:00'))
+                match_elapsed = event_time - match_start
+                match_time_seconds = int(match_elapsed.total_seconds())
+                match_time_str = f"{match_time_seconds // 60:02d}:{match_time_seconds % 60:02d}"
+            except:
+                match_time_str = "00:00"
+            
+            # Process weapon name
+            weapon = DAMAGE_CAUSER_NAME.get(event.damage_causer_name, event.damage_causer_name)
+            
+            return ProcessedTelemetryEvent.from_knock_event(event, match_time_str, monitored_player_names, weapon)
+            
+        except Exception as e:
+            print(f"Error processing LogPlayerMakeGroggy: {e}")
             return None
 
 # Global API service instance
