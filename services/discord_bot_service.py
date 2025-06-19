@@ -211,6 +211,15 @@ class DiscordBotService(commands.Bot):
                     
                     target_link = f"[{event['target']}](https://pubg.op.gg/user/{event['target']})"
                     description += f"\n`{event['match_time']}` {icon} - {target_link} ({event['weapon']}, {round(event['distance'])}m)"
+                
+                elif event['target'] == player_name:  # Player was the victim
+                    if event['event_type'] == 'kill':
+                        icon = "💀 Killed by"
+                    else:
+                        icon = "🩹 Knocked by"
+                    
+                    actor_link = f"[{event['actor']}](https://pubg.op.gg/user/{event['actor']})"
+                    description += f"\n`{event['match_time']}` {icon} - {actor_link} ({event['weapon']}, {round(event['distance'])}m)"
         
         embed = discord.Embed(
             title=f"Player: {player_name}",

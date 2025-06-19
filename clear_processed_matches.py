@@ -85,23 +85,7 @@ async def clear_recent_matches(count: int = 5):
         traceback.print_exc()
 
 async def main():
-    """Main function with options"""
-    print("🧹 PUBG Match Processor Cleaner")
-    print("=" * 40)
-    print("This utility helps clear processed matches for testing")
-    print()
-    print("Options:")
-    print("1. Clear recent 1 matches (recommended for testing)")
-    print("2. Exit")
-    
-    choice = input("\nSelect option (1/2): ")
-    
-    if choice == '1':
         await clear_recent_matches(1)
-    elif choice == '2':
-        print("Goodbye!")
-    else:
-        print("Invalid choice")
 
 if __name__ == "__main__":
     try:

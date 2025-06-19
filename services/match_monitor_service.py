@@ -179,9 +179,13 @@ class MatchMonitorService:
                         # No timezone info, add Z for UTC
                         match_timestamp = match.created_at.isoformat() + "Z"
                     
+                    # Get all squad member names for telemetry processing
+                    squad_member_names = [member.get("name", "") for member in squad_members if member.get("name")]
+                    print(f"Squad members for telemetry: {', '.join(squad_member_names)}")
+                    
                     telemetry_events = pubg_api_service.process_telemetry_events(
                         telemetry_data,
-                        monitored_players,
+                        squad_member_names,  # Use all squad members instead of just monitored players
                         match_timestamp
                     )
                     print(f"Found {len(telemetry_events)} relevant telemetry events")
