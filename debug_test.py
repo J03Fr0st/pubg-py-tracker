@@ -158,6 +158,68 @@ async def debug_environment():
     print(f"Check Interval: {settings.CHECK_INTERVAL_MS}ms")
     print(f"Max Matches: {settings.MAX_MATCHES_TO_PROCESS}")
 
+async def debug_discord_bot():
+    """Test Discord bot connection"""
+    print("\n🔍 Testing Discord Bot Connection...")
+    print("-" * 40)
+    
+    try:
+        # Test environment variables
+        if not settings.DISCORD_TOKEN:
+            print("❌ DISCORD_TOKEN not set")
+            return
+        if not settings.DISCORD_CLIENT_ID:
+            print("❌ DISCORD_CLIENT_ID not set")  
+            return
+        if not settings.DISCORD_CHANNEL_ID:
+            print("❌ DISCORD_CHANNEL_ID not set")
+            return
+            
+        print(f"✅ Token: {'*' * 10 + settings.DISCORD_TOKEN[-10:]}")
+        print(f"✅ Client ID: {settings.DISCORD_CLIENT_ID}")
+        print(f"✅ Channel ID: {settings.DISCORD_CHANNEL_ID}")
+        
+        # Test bot connection (short test)
+        from discord.ext import commands
+        import discord
+        
+        test_intents = discord.Intents.default()
+        test_intents.message_content = True
+        test_intents.guilds = True
+        
+        test_bot = commands.Bot(command_prefix='!', intents=test_intents)
+        
+        @test_bot.event
+        async def on_ready():
+            print(f"✅ Bot connected as {test_bot.user}")
+            print(f"✅ Connected to {len(test_bot.guilds)} guild(s)")
+            
+            # Check if target channel exists
+            target_channel = test_bot.get_channel(settings.DISCORD_CHANNEL_ID)
+            if target_channel and isinstance(target_channel, discord.TextChannel):
+                print(f"✅ Found target channel: {target_channel.name}")
+            elif target_channel:
+                print(f"❌ Channel {settings.DISCORD_CHANNEL_ID} is not a text channel")
+            else:
+                print(f"❌ Could not find channel with ID {settings.DISCORD_CHANNEL_ID}")
+                
+            await test_bot.close()
+        
+        print("🔄 Testing bot connection...")
+        try:
+            await test_bot.start(settings.DISCORD_TOKEN)
+        except discord.LoginFailure:
+            print("❌ Invalid bot token")
+        except discord.HTTPException as e:
+            print(f"❌ HTTP error: {e}")
+        except Exception as e:
+            print(f"❌ Connection error: {e}")
+            
+    except Exception as e:
+        print(f"❌ Discord bot test failed: {e}")
+        import traceback
+        traceback.print_exc()
+
 async def main():
     """Main debug function"""
     print("🐛 PUBG Discord Bot Debug Session")
@@ -172,6 +234,7 @@ async def main():
     await debug_storage_service()
     await debug_pubg_api()
     await debug_match_processing()
+    await debug_discord_bot()
     
     print("\n🎉 Debug session completed!")
 

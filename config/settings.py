@@ -8,7 +8,13 @@ class Settings:
     # Discord configuration
     DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
     DISCORD_CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
-    DISCORD_CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', '0'))
+    
+    # Handle channel ID conversion properly
+    try:
+        DISCORD_CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', '0'))
+    except (ValueError, TypeError):
+        print(f"Warning: Invalid DISCORD_CHANNEL_ID: {os.getenv('DISCORD_CHANNEL_ID')}")
+        DISCORD_CHANNEL_ID = 0
     
     # PUBG API configuration
     PUBG_API_KEY = os.getenv('PUBG_API_KEY')

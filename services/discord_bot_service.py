@@ -14,6 +14,8 @@ class DiscordBotService(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.guilds = True
+        intents.guild_messages = True
         
         super().__init__(
             command_prefix='/',
@@ -27,24 +29,18 @@ class DiscordBotService(commands.Bot):
     async def setup_hook(self):
         """Setup hook called when bot is ready"""
         print(f"Bot logged in as {self.user}")
+        print(f"Looking for channel ID: {self.channel_id}")
         
-        # Get all channels from all guilds
-        print("Available channels:")
-        for guild in self.guilds:
-            print(f"Guild: {guild.name} ({guild.id})")
-            for channel in guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    print(f"  Channel: {channel.name} - {channel.id}")
-        
-        # Get target channel
-        self.target_channel = self.get_channel(self.channel_id)
-        if not self.target_channel:
-            print(f"Warning: Could not find channel with ID {self.channel_id}")
-            print("Make sure the bot has access to the channel and the ID is correct")
-        elif isinstance(self.target_channel, discord.TextChannel):
-            print(f"✓ Found target channel: {self.target_channel.name}")
-        else:
-            print(f"Warning: Channel {self.channel_id} is not a text channel")
+        # Use fetch_channel to get the target channel
+        try:
+            self.target_channel = await self.fetch_channel(self.channel_id)
+            if isinstance(self.target_channel, discord.TextChannel):
+                print(f"✅ Found target channel: {self.target_channel.name} ({self.target_channel.id})")
+            else:
+                print(f"❌ Warning: Channel {self.channel_id} is not a text channel (type: {type(self.target_channel)})")
+        except Exception as e:
+            print(f"❌ Failed to fetch channel {self.channel_id}: {e}")
+            self.target_channel = None
         
         # Sync slash commands
         try:
@@ -97,10 +93,20 @@ class DiscordBotService(commands.Bot):
         # Convert timestamp to South African timezone
         sa_tz = pytz.timezone('Africa/Johannesburg')
         try:
-            utc_time = datetime.fromisoformat(match_data["created_at"].replace('Z', '+00:00'))
+            # Handle different datetime formats
+            created_at = match_data["created_at"]
+            if created_at.endswith('Z'):
+                # Replace Z with +00:00 for UTC
+                created_at = created_at.replace('Z', '+00:00')
+            elif not ('+' in created_at[-6:] or '-' in created_at[-6:]):
+                # No timezone info, assume UTC
+                created_at = created_at + '+00:00'
+            
+            utc_time = datetime.fromisoformat(created_at)
             sa_time = utc_time.astimezone(sa_tz)
             formatted_time = sa_time.strftime("%Y/%m/%d %H:%M")
-        except:
+        except Exception as e:
+            print(f"Error parsing timestamp '{match_data.get('created_at', 'None')}': {e}")
             formatted_time = "Unknown"
         
         # Get map and game mode display names
@@ -136,7 +142,7 @@ class DiscordBotService(commands.Bot):
             title="🎮 PUBG Match Summary",
             description=description,
             color=color,
-            timestamp=datetime.fromisoformat(match_data["created_at"].replace('Z', '+00:00'))
+            timestamp=utc_time
         )
         
         embed.set_footer(text=f"PUBG Match Tracker - {match_data['match_id']}")

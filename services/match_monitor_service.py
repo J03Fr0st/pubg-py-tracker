@@ -34,41 +34,52 @@ class MatchMonitorService:
     async def _check_for_new_matches(self):
         """Check for new matches for all monitored players"""
         try:
+            print("🔍 Checking for new matches...")
+            
             # Get all monitored players
             players = await storage_service.get_all_players()
             if not players:
-                print("No players to monitor")
+                print("❌ No players to monitor - use /add command to add players")
                 return
-            
-            print(f"Found {len(players)} players to monitor")
+
+            player_names = [p.name for p in players if p.name]
+            print(f"✅ Found {len(players)} players to monitor: {', '.join(player_names)}")
             
             # Get recent matches for all players
             all_match_ids = await self._get_recent_matches_for_players(players)
             if not all_match_ids:
-                print("No recent matches found")
+                print("❌ No recent matches found for any monitored players")
                 return
+            
+            total_matches = sum(len(matches) for matches in all_match_ids.values())
+            print(f"✅ Found {total_matches} total recent matches across all players")
             
             # Group matches by ID and collect monitored players in each match
             match_groups = await self._group_matches_by_id(all_match_ids, players)
+            print(f"✅ Grouped into {len(match_groups)} unique matches")
             
             # Filter out already processed matches
             new_matches = await self._filter_unprocessed_matches(match_groups)
             if not new_matches:
-                print("No new matches to process")
+                print("ℹ️  No new matches to process (all matches already processed)")
                 return
+            
+            print(f"✅ Found {len(new_matches)} new matches to process")
             
             # Sort matches chronologically (oldest first)
             sorted_matches = self._sort_matches_chronologically(new_matches)
             
             # Process matches (limit to max_matches_to_process)
             matches_to_process = sorted_matches[:self.max_matches_to_process]
-            print(f"Processing {len(matches_to_process)} new matches")
+            print(f"🚀 Processing {len(matches_to_process)} new matches...")
             
             for match_info in matches_to_process:
                 await self._process_match(match_info)
                 
         except Exception as e:
-            print(f"Error checking for new matches: {e}")
+            print(f"❌ Error checking for new matches: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def _get_recent_matches_for_players(self, players) -> Dict[str, List[str]]:
         """Get recent match IDs for all players"""
@@ -160,10 +171,18 @@ class MatchMonitorService:
             if match.telemetry_url:
                 telemetry_data = await pubg_api_service.get_telemetry(match.telemetry_url)
                 if telemetry_data:
+                    # Properly format the timestamp for telemetry processing
+                    if match.created_at.tzinfo is not None:
+                        # Already has timezone info, use as is
+                        match_timestamp = match.created_at.isoformat()
+                    else:
+                        # No timezone info, add Z for UTC
+                        match_timestamp = match.created_at.isoformat() + "Z"
+                    
                     telemetry_events = pubg_api_service.process_telemetry_events(
                         telemetry_data,
                         monitored_players,
-                        match.created_at.isoformat() + "Z"
+                        match_timestamp
                     )
                     print(f"Found {len(telemetry_events)} relevant telemetry events")
                 else:
@@ -172,18 +191,22 @@ class MatchMonitorService:
                 print(f"No telemetry URL available for match {match_id}")
             
             # Send Discord embed
+            print(f"📤 Sending Discord message for match {match_id}")
             await bot.send_match_summary(
                 match.to_dict(),
                 squad_members,
                 telemetry_events
             )
+            print(f"✅ Discord message sent for match {match_id}")
             
             # Mark match as processed
             await storage_service.mark_match_processed(match_id)
             print(f"Successfully processed match {match_id}")
             
         except Exception as e:
-            print(f"Error processing match {match_id}: {e}")
+            print(f"❌ Error processing match {match_id}: {e}")
+            import traceback
+            traceback.print_exc()
 
 # Global monitor service instance
 match_monitor_service = MatchMonitorService() 
