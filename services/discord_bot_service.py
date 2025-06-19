@@ -92,6 +92,8 @@ class DiscordBotService(commands.Bot):
         """Create the main match summary embed"""
         # Convert timestamp to South African timezone
         sa_tz = pytz.timezone('Africa/Johannesburg')
+        utc_time = datetime.utcnow()  # Default fallback value
+        
         try:
             # Handle different datetime formats
             created_at = match_data["created_at"]

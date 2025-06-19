@@ -109,11 +109,19 @@ class Match:
         return match
     
     def to_dict(self) -> Dict[str, Any]:
+        # Format timestamp properly
+        if self.created_at.tzinfo is not None:
+            # Already has timezone info, use as is
+            created_at_str = self.created_at.isoformat()
+        else:
+            # No timezone info, add Z for UTC
+            created_at_str = self.created_at.isoformat() + "Z"
+        
         return {
             "match_id": self.match_id,
             "map_name": self.map_name,
             "game_mode": self.game_mode,
-            "created_at": self.created_at.isoformat() + "Z",
+            "created_at": created_at_str,
             "duration": self.duration,
             "custom_match": self.custom_match,
             "shard_id": self.shard_id,
