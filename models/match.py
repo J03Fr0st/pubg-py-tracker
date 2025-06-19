@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from types.pubg_types import PubgMatch, PubgParticipant, PubgRoster
+from pubg_types.pubg_types import PubgMatch, PubgParticipant, PubgRoster
 
 class Match:
     def __init__(self, match_id: str):

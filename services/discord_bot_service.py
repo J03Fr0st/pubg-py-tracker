@@ -8,7 +8,7 @@ from services.storage_service import storage_service
 from services.pubg_api_service import pubg_api_service
 from models.player import Player
 from utils.mappings import MAP_NAMES, GAME_MODES, generate_match_color
-from types.telemetry_types import ProcessedTelemetryEvent
+from pubg_types.telemetry_types import ProcessedTelemetryEvent
 
 class DiscordBotService(commands.Bot):
     def __init__(self):
