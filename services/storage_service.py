@@ -23,9 +23,9 @@ class StorageService:
             # Get database
             self.db = self.client.get_default_database()
             
-            # Get collections
+            # Get collections (using actual collection names from database)
             self.players_collection = self.db.players
-            self.processed_matches_collection = self.db.processed_matches
+            self.processed_matches_collection = self.db.processedmatches  # Use actual collection name (lowercase)
             
             # Create indexes for performance
             await self._create_indexes()
@@ -40,15 +40,16 @@ class StorageService:
             # Index on player names for faster lookups
             await self.players_collection.create_index("name", unique=True)
             
-            # Index on pubg_id for faster lookups - handle both formats
+            # Index on pubgId for faster lookups (using actual database field name)
             try:
-                await self.players_collection.create_index("pubg_id", unique=True, sparse=True)
+                await self.players_collection.create_index("pubgId", unique=True, sparse=True)
             except Exception:
                 # Index might already exist or fail, continue
                 pass
             
+            # Legacy index for backward compatibility (if any snake_case data exists)
             try:
-                await self.players_collection.create_index("pubgId", unique=True, sparse=True)
+                await self.players_collection.create_index("pubg_id", unique=True, sparse=True)
             except Exception:
                 # Index might already exist or fail, continue
                 pass
@@ -80,13 +81,13 @@ class StorageService:
     async def add_player(self, player: Player) -> bool:
         """Add a new player to monitoring"""
         try:
-            # Use upsert to avoid duplicates if both formats exist
+            # Use upsert to avoid duplicates, query by actual database field names
             await self.players_collection.update_one(
                 {
                     "$or": [
                         {"name": player.name},
-                        {"pubg_id": player.pubg_id},
-                        {"pubgId": player.pubg_id}
+                        {"pubgId": player.pubg_id},  # Use actual database field name
+                        {"pubg_id": player.pubg_id}  # Fallback for legacy data
                     ]
                 },
                 {"$set": player.to_dict()},
@@ -137,12 +138,12 @@ class StorageService:
     async def update_player(self, player: Player) -> bool:
         """Update player information"""
         try:
-            # Query for both camelCase (pubgId) and snake_case (pubg_id) for backward compatibility
+            # Query using actual database field names (prioritize camelCase)
             result = await self.players_collection.replace_one(
                 {
                     "$or": [
-                        {"pubg_id": player.pubg_id},
-                        {"pubgId": player.pubg_id}
+                        {"pubgId": player.pubg_id},  # Use actual database field name
+                        {"pubg_id": player.pubg_id}  # Fallback for legacy data
                     ]
                 },
                 player.to_dict()
