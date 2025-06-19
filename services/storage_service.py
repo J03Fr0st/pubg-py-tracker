@@ -39,10 +39,33 @@ class StorageService:
         try:
             # Index on player names for faster lookups
             await self.players_collection.create_index("name", unique=True)
-            await self.players_collection.create_index("pubg_id", unique=True)
+            
+            # Index on pubg_id for faster lookups - handle both formats
+            try:
+                await self.players_collection.create_index("pubg_id", unique=True, sparse=True)
+            except Exception:
+                # Index might already exist or fail, continue
+                pass
+            
+            try:
+                await self.players_collection.create_index("pubgId", unique=True, sparse=True)
+            except Exception:
+                # Index might already exist or fail, continue
+                pass
             
             # Index on match IDs for faster duplicate checking
-            await self.processed_matches_collection.create_index("match_id", unique=True)
+            # Handle both camelCase (matchId) and snake_case (match_id) formats
+            try:
+                await self.processed_matches_collection.create_index("match_id", unique=True, sparse=True)
+            except Exception:
+                # Index might already exist or fail, continue
+                pass
+            
+            try:
+                await self.processed_matches_collection.create_index("matchId", unique=True, sparse=True)
+            except Exception:
+                # Index might already exist or fail, continue
+                pass
             
             print("Database indexes created successfully")
         except Exception as e:
@@ -57,7 +80,18 @@ class StorageService:
     async def add_player(self, player: Player) -> bool:
         """Add a new player to monitoring"""
         try:
-            await self.players_collection.insert_one(player.to_dict())
+            # Use upsert to avoid duplicates if both formats exist
+            await self.players_collection.update_one(
+                {
+                    "$or": [
+                        {"name": player.name},
+                        {"pubg_id": player.pubg_id},
+                        {"pubgId": player.pubg_id}
+                    ]
+                },
+                {"$set": player.to_dict()},
+                upsert=True
+            )
             print(f"Added player {player.name} to monitoring")
             return True
         except Exception as e:
@@ -103,8 +137,14 @@ class StorageService:
     async def update_player(self, player: Player) -> bool:
         """Update player information"""
         try:
+            # Query for both camelCase (pubgId) and snake_case (pubg_id) for backward compatibility
             result = await self.players_collection.replace_one(
-                {"pubg_id": player.pubg_id},
+                {
+                    "$or": [
+                        {"pubg_id": player.pubg_id},
+                        {"pubgId": player.pubg_id}
+                    ]
+                },
                 player.to_dict()
             )
             return result.modified_count > 0
@@ -116,7 +156,13 @@ class StorageService:
     async def is_match_processed(self, match_id: str) -> bool:
         """Check if a match has already been processed"""
         try:
-            doc = await self.processed_matches_collection.find_one({"match_id": match_id})
+            # Query for both camelCase (matchId) and snake_case (match_id) for backward compatibility
+            doc = await self.processed_matches_collection.find_one({
+                "$or": [
+                    {"match_id": match_id},
+                    {"matchId": match_id}
+                ]
+            })
             return doc is not None
         except Exception as e:
             print(f"Failed to check if match {match_id} is processed: {e}")
@@ -126,7 +172,17 @@ class StorageService:
         """Mark a match as processed"""
         try:
             processed_match = ProcessedMatch(match_id)
-            await self.processed_matches_collection.insert_one(processed_match.to_dict())
+            # Use upsert to avoid duplicates if both formats exist
+            await self.processed_matches_collection.update_one(
+                {
+                    "$or": [
+                        {"match_id": match_id},
+                        {"matchId": match_id}
+                    ]
+                },
+                {"$set": processed_match.to_dict()},
+                upsert=True
+            )
             return True
         except Exception as e:
             print(f"Failed to mark match {match_id} as processed: {e}")
