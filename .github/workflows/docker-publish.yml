@@ -117,6 +117,80 @@ jobs:
               sys.exit(1)
           "
 
+  # Auto-increment tags on main branch pushes
+  auto-tag:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      new_tag: ${{ steps.tag.outputs.new_tag }}
+      tag_created: ${{ steps.tag.outputs.tag_created }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest tag and increment
+        id: tag
+        run: |
+          # Configure git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Extract version numbers
+          VERSION=${LATEST_TAG#v}  # Remove 'v' prefix
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+          
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+          
+          # Increment patch version
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          
+          echo "New tag: $NEW_TAG"
+          
+          # Check if we should create a tag based on commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          
+          # Skip tag creation if commit message contains [skip-tag]
+          if [[ "$COMMIT_MSG" == *"[skip-tag]"* ]]; then
+            echo "Skipping tag creation due to [skip-tag] in commit message"
+            echo "tag_created=false" >> $GITHUB_OUTPUT
+            echo "new_tag=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check for version bump indicators in commit message
+          if [[ "$COMMIT_MSG" == *"[major]"* ]] || [[ "$COMMIT_MSG" == *"BREAKING CHANGE"* ]]; then
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_TAG="v${NEW_MAJOR}.0.0"
+          elif [[ "$COMMIT_MSG" == *"[minor]"* ]] || [[ "$COMMIT_MSG" == *"feat:"* ]]; then
+            NEW_MINOR=$((MINOR + 1))
+            NEW_TAG="v${MAJOR}.${NEW_MINOR}.0"
+          fi
+          
+          echo "Final new tag: $NEW_TAG"
+          
+          # Create and push the tag
+          git tag -a "$NEW_TAG" -m "Auto-generated release $NEW_TAG
+          
+          Generated from commit: $(git rev-parse --short HEAD)
+          Commit message: $COMMIT_MSG"
+          
+          git push origin "$NEW_TAG"
+          
+          echo "tag_created=true" >> $GITHUB_OUTPUT
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
   # Docker Build and Push
   docker-build:
     runs-on: ubuntu-latest
@@ -143,8 +217,8 @@ jobs:
   # Create Release 
   release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
-    needs: [test]
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/') || (needs.auto-tag.outputs.tag_created == 'true')
+    needs: [test, auto-tag]
     
     steps:
       - name: Checkout code
@@ -155,8 +229,12 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
             echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          else
+          elif [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.auto-tag.outputs.tag_created }}" = "true" ]; then
+            echo "VERSION=${{ needs.auto-tag.outputs.new_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release Assets
@@ -180,9 +258,9 @@ jobs:
           asset_name: pubg-tracker-${{ steps.version.outputs.VERSION }}.tar.gz
           asset_content_type: application/gzip
 
-      - name: Create Release (for tags)
+      - name: Create Release (For auto-generated or tag-triggered releases)
         id: create_release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || (needs.auto-tag.outputs.tag_created == 'true')
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -193,9 +271,9 @@ jobs:
             🚀 **PUBG Python Tracker ${{ steps.version.outputs.VERSION }}**
             
             ## Changes
-            - Automated release from tag push
+            ${{ needs.auto-tag.outputs.tag_created == 'true' && '- Automated release from main branch push' || '- Release from tag push' }}
             - Updated environment variables to simplified configuration
-            - Improved CI/CD pipeline
+            - Improved CI/CD pipeline with auto-tagging
             
             ## Installation
             ```bash
@@ -216,11 +294,18 @@ jobs:
             ```bash
             docker run -d --env-file .env pubg-tracker-bot:latest
             ```
+            
+            ## Auto-Tagging
+            This release was automatically generated. To control versioning in future commits:
+            - Add `[major]` or `BREAKING CHANGE` in commit message for major version bump
+            - Add `[minor]` or `feat:` in commit message for minor version bump  
+            - Add `[skip-tag]` in commit message to skip automatic tagging
+            - Default behavior: patch version increment
           draft: false
           prerelease: false
 
-      - name: Upload Release Asset (for tags)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Release Asset (for auto-generated or tag-triggered releases)
+        if: (startsWith(github.ref, 'refs/tags/') || (needs.auto-tag.outputs.tag_created == 'true')) && steps.create_release.outputs.upload_url
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

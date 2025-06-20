@@ -259,6 +259,12 @@ The project includes a comprehensive CI/CD pipeline that runs on every push and 
 - **Import Testing**: Validates all modules can be imported correctly
 - **Configuration Testing**: Ensures settings validation works properly
 
+#### 🏷️ **Auto-Tagging Stage**
+- **Automatic Versioning**: Creates version tags on every push to main
+- **Smart Version Bumping**: Supports semantic versioning based on commit messages
+- **Controlled Releases**: Option to skip tagging with `[skip-tag]`
+- **Release Generation**: Automatically creates GitHub releases with assets
+
 #### 🐳 **Docker Stage**
 - **Multi-Architecture Builds**: Supports AMD64 and ARM64 architectures
 - **Container Security**: Trivy vulnerability scanning
@@ -316,8 +322,28 @@ Docker images are automatically built and published to Docker Hub:
 
 5. **Deployment**
    - Merge to `main` triggers production build
-   - Docker image automatically published
-   - Optional deployment to production environment
+   - **Auto-tagging**: New version tag created automatically
+   - **Automatic Release**: GitHub release generated with assets
+   - Docker image automatically published and tagged
+
+### Auto-Tagging System
+
+The project includes an intelligent auto-tagging system that creates version tags on every push to `main`:
+
+- **Default Behavior**: Patch version increment (v1.0.0 → v1.0.1)
+- **Minor Release**: Include `[minor]` or `feat:` in commit message (v1.0.0 → v1.1.0)
+- **Major Release**: Include `[major]` or `BREAKING CHANGE` in commit message (v1.0.0 → v2.0.0)
+- **Skip Tagging**: Include `[skip-tag]` in commit message to skip automatic tagging
+
+**Examples:**
+```bash
+git commit -m "Fix Discord message formatting"           # → v1.0.1 (patch)
+git commit -m "feat: Add new player statistics command"  # → v1.1.0 (minor)
+git commit -m "BREAKING CHANGE: Redesign API structure"  # → v2.0.0 (major)
+git commit -m "Update documentation [skip-tag]"          # → No tag created
+```
+
+For detailed information, see [AUTO_TAGGING.md](AUTO_TAGGING.md).
 
 ### Secrets Configuration
 
