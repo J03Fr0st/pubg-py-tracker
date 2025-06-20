@@ -221,10 +221,13 @@ class DiscordBotService(commands.Bot):
                     actor_link = f"[{event['actor']}](https://pubg.op.gg/user/{event['actor']})"
                     description += f"\n`{event['match_time']}` {icon} - {actor_link} ({event['weapon']}, {round(event['distance'])}m)"
         
+        # Generate the same color as the main embed for consistency
+        color = generate_match_color(match_id)
+        
         embed = discord.Embed(
             title=f"Player: {player_name}",
             description=description,
-            color=0x2f3136  # Dark gray
+            color=color
         )
         
         return embed
