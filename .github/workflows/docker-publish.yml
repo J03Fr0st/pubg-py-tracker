@@ -9,6 +9,12 @@ on:
   release:
     types: [ published ]
 
+# Grant necessary permissions for auto-tagging
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 env:
   PYTHON_VERSION: '3.11'
   REGISTRY: docker.io
@@ -132,6 +138,7 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for tags
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Get latest tag and increment
         id: tag
@@ -186,7 +193,8 @@ jobs:
           Generated from commit: $(git rev-parse --short HEAD)
           Commit message: $COMMIT_MSG"
           
-          git push origin "$NEW_TAG"
+          # Push tag using the GitHub token
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git "$NEW_TAG"
           
           echo "tag_created=true" >> $GITHUB_OUTPUT
           echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
