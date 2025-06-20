@@ -295,9 +295,18 @@ on:
 
 Docker images are automatically built and published to Docker Hub:
 
-- **Latest**: `username/pubg-tracker-bot:latest` (from main branch)
-- **Develop**: `username/pubg-tracker-bot:develop` (from develop branch)
-- **Versioned**: `username/pubg-tracker-bot:v1.0.0` (from releases)
+- **Latest**: `your-dockerhub-username/pubg-tracker-bot:latest` (from main branch)
+- **Develop**: `your-dockerhub-username/pubg-tracker-bot:develop` (from develop branch)  
+- **Versioned**: `your-dockerhub-username/pubg-tracker-bot:v1.0.0` (from auto-tags)
+
+**Running with Docker:**
+```bash
+# Pull and run latest version
+docker run -d --name pubg-tracker --env-file .env your-dockerhub-username/pubg-tracker-bot:latest
+
+# Or run specific version
+docker run -d --name pubg-tracker --env-file .env your-dockerhub-username/pubg-tracker-bot:v1.0.1
+```
 
 ### Development Workflow
 
@@ -347,12 +356,23 @@ For detailed information, see [AUTO_TAGGING.md](AUTO_TAGGING.md).
 
 ### Secrets Configuration
 
-For the CI/CD pipeline to work, configure these GitHub secrets:
+For the CI/CD pipeline to work, configure these GitHub repository secrets:
 
-| Secret | Description |
-|--------|-------------|
-| `DOCKERHUB_USERNAME` | Docker Hub username |
-| `DOCKERHUB_TOKEN` | Docker Hub access token |
+| Secret | Description | Required For |
+|--------|-------------|--------------|
+| `DOCKERHUB_USERNAME` | Docker Hub username | Docker image publishing |
+| `DOCKERHUB_TOKEN` | Docker Hub access token | Docker image publishing |
+
+**To add secrets:**
+1. Go to your GitHub repository → Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Add each secret with the exact names above
+
+**Docker Hub Token Setup:**
+1. Log in to [Docker Hub](https://hub.docker.com)
+2. Go to Account Settings → Security → Access Tokens
+3. Create a new access token with "Read, Write, Delete" permissions
+4. Use this token as `DOCKERHUB_TOKEN` (not your password)
 
 ### Quality Standards
 
