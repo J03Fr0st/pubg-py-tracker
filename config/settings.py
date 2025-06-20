@@ -19,15 +19,15 @@ class Settings:
     # PUBG API configuration
     PUBG_API_KEY = os.getenv('PUBG_API_KEY')
     PUBG_API_URL = os.getenv('PUBG_API_URL', 'https://api.pubg.com')
-    PUBG_SHARD = os.getenv('PUBG_SHARD', 'steam')
-    PUBG_MAX_REQUESTS_PER_MINUTE = int(os.getenv('PUBG_MAX_REQUESTS_PER_MINUTE', '10'))
+    DEFAULT_SHARD = os.getenv('DEFAULT_SHARD', 'steam')
     
     # MongoDB configuration
     MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/pubg-tracker')
     
-    # Application configuration
-    CHECK_INTERVAL_MS = int(os.getenv('CHECK_INTERVAL_MS', '60000'))
-    MAX_MATCHES_TO_PROCESS = int(os.getenv('MAX_MATCHES_TO_PROCESS', '5'))
+    # Application configuration (hardcoded defaults)
+    PUBG_MAX_REQUESTS_PER_MINUTE = 10
+    CHECK_INTERVAL_MS = 60000  # 60 seconds
+    MAX_MATCHES_TO_PROCESS = 5
     
     # Validation
     @classmethod
@@ -38,6 +38,9 @@ class Settings:
             ('DISCORD_CLIENT_ID', cls.DISCORD_CLIENT_ID),
             ('DISCORD_CHANNEL_ID', cls.DISCORD_CHANNEL_ID),
             ('PUBG_API_KEY', cls.PUBG_API_KEY),
+            ('PUBG_API_URL', cls.PUBG_API_URL),
+            ('DEFAULT_SHARD', cls.DEFAULT_SHARD),
+            ('MONGODB_URI', cls.MONGODB_URI),
         ]
         
         missing_vars = []

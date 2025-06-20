@@ -19,7 +19,7 @@ class PubgApiService:
         
         self.base_url = base_url
         self.api_key = settings.PUBG_API_KEY
-        self.shard = settings.PUBG_SHARD
+        self.shard = settings.DEFAULT_SHARD
         self.rate_limiter = RateLimiter(settings.PUBG_MAX_REQUESTS_PER_MINUTE)
         self.session: Optional[aiohttp.ClientSession] = None
         

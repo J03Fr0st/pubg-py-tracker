@@ -153,7 +153,7 @@ async def debug_environment():
     print(f"Discord Channel ID: {settings.DISCORD_CHANNEL_ID}")
     print(f"PUBG API Key: {'✅ Set' if settings.PUBG_API_KEY else '❌ Missing'}")
     print(f"PUBG API URL: {settings.PUBG_API_URL}")
-    print(f"PUBG Shard: {settings.PUBG_SHARD}")
+    print(f"PUBG Shard: {settings.DEFAULT_SHARD}")
     print(f"MongoDB URI: {'✅ Set' if settings.MONGODB_URI else '❌ Missing'}")
     print(f"Check Interval: {settings.CHECK_INTERVAL_MS}ms")
     print(f"Max Matches: {settings.MAX_MATCHES_TO_PROCESS}")

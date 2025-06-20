@@ -79,11 +79,9 @@ Player: PlayerName
    DISCORD_CLIENT_ID=your_client_id_here
    DISCORD_CHANNEL_ID=your_channel_id_here
    PUBG_API_KEY=your_pubg_api_key_here
-   PUBG_SHARD=steam
-   PUBG_MAX_REQUESTS_PER_MINUTE=10
+   PUBG_API_URL=https://api.pubg.com
+   DEFAULT_SHARD=steam
    MONGODB_URI=mongodb://localhost:27017/pubg-tracker
-   CHECK_INTERVAL_MS=60000
-   MAX_MATCHES_TO_PROCESS=5
    ```
 
 4. **Set up MongoDB**
@@ -164,11 +162,17 @@ List all currently monitored players.
 | `DISCORD_CLIENT_ID` | Discord application client ID | Required |
 | `DISCORD_CHANNEL_ID` | Target channel for match summaries | Required |
 | `PUBG_API_KEY` | PUBG API key | Required |
-| `PUBG_SHARD` | PUBG platform shard | `steam` |
-| `PUBG_MAX_REQUESTS_PER_MINUTE` | API rate limit | `10` |
+| `PUBG_API_URL` | PUBG API base URL | `https://api.pubg.com` |
+| `DEFAULT_SHARD` | PUBG platform shard | `steam` |
 | `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/pubg-tracker` |
-| `CHECK_INTERVAL_MS` | Match check interval in milliseconds | `60000` |
-| `MAX_MATCHES_TO_PROCESS` | Max matches to process per check | `5` |
+
+### Application Configuration (Hardcoded)
+
+The following settings are now hardcoded for simplicity:
+
+- **Rate Limit**: 10 requests per minute
+- **Check Interval**: 60 seconds
+- **Max Matches**: 5 matches per check
 
 ### Supported PUBG Shards
 
@@ -214,6 +218,126 @@ pubg-py-tracker/
 4. **Storage Service** - MongoDB operations for players and processed matches
 5. **Rate Limiter** - Token bucket algorithm for API rate limiting
 
+## Development & CI/CD
+
+### Development Setup
+
+1. **Install development dependencies**
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+
+2. **Set up pre-commit hooks**
+   ```bash
+   pre-commit install
+   ```
+
+3. **Run code quality checks**
+   ```bash
+   # Format code
+   black .
+   isort .
+   
+   # Lint code
+   flake8 .
+   
+   # Security scan
+   bandit -r .
+   
+   # Check dependencies
+   safety check
+   ```
+
+### GitHub Actions Pipeline
+
+The project includes a comprehensive CI/CD pipeline that runs on every push and pull request:
+
+#### 🧪 **Test Stage**
+- **Multi-Python Testing**: Tests against Python 3.10, 3.11, and 3.12
+- **Code Quality**: Black formatting, isort import sorting, flake8 linting
+- **Security Scanning**: Bandit security analysis, Safety dependency checks
+- **Import Testing**: Validates all modules can be imported correctly
+- **Configuration Testing**: Ensures settings validation works properly
+
+#### 🐳 **Docker Stage**
+- **Multi-Architecture Builds**: Supports AMD64 and ARM64 architectures
+- **Container Security**: Trivy vulnerability scanning
+- **Smart Caching**: Uses GitHub Actions cache for faster builds
+- **Automated Publishing**: Pushes to Docker Hub on successful builds
+
+#### 🚀 **Release Stage**
+- **Automated Releases**: Creates deployment packages on GitHub releases
+- **Semantic Versioning**: Supports versioned Docker tags
+- **Release Assets**: Generates compressed deployment archives
+
+### Pipeline Configuration
+
+The pipeline is configured in `.github/workflows/docker-publish.yml` and includes:
+
+```yaml
+# Triggers
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+```
+
+### Docker Images
+
+Docker images are automatically built and published to Docker Hub:
+
+- **Latest**: `username/pubg-tracker-bot:latest` (from main branch)
+- **Develop**: `username/pubg-tracker-bot:develop` (from develop branch)
+- **Versioned**: `username/pubg-tracker-bot:v1.0.0` (from releases)
+
+### Development Workflow
+
+1. **Create Feature Branch**
+   ```bash
+   git checkout -b feature/your-feature
+   ```
+
+2. **Make Changes**
+   - Code changes follow Black formatting
+   - Import sorting with isort
+   - Linting passes flake8 checks
+
+3. **Pre-commit Checks**
+   ```bash
+   pre-commit run --all-files
+   ```
+
+4. **Push and Create PR**
+   - CI pipeline runs automatically
+   - Checks must pass before merge
+
+5. **Deployment**
+   - Merge to `main` triggers production build
+   - Docker image automatically published
+   - Optional deployment to production environment
+
+### Secrets Configuration
+
+For the CI/CD pipeline to work, configure these GitHub secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
+
+### Quality Standards
+
+The project maintains high code quality through:
+
+- **100% Import Coverage**: All modules must import without errors
+- **Security First**: Regular dependency and code security scans
+- **Consistent Formatting**: Automated code formatting with Black
+- **Type Hints**: Gradual typing with mypy support
+- **Documentation**: Comprehensive inline and API documentation
+
 ## Troubleshooting
 
 ### Common Issues
@@ -234,9 +358,9 @@ pubg-py-tracker/
    - Ensure database permissions are set
 
 4. **Rate limit errors**
-   - Reduce `PUBG_MAX_REQUESTS_PER_MINUTE`
-   - Increase `CHECK_INTERVAL_MS`
-   - Monitor API usage
+   - The bot uses a hardcoded rate limit of 10 requests per minute
+   - The check interval is hardcoded to 60 seconds
+   - Monitor API usage through logs
 
 ### Logs
 
