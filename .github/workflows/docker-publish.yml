@@ -239,13 +239,35 @@ jobs:
 
       - name: Create Release Assets
         run: |
-          # Create a deployment package
-          tar -czf pubg-tracker-${{ steps.version.outputs.VERSION }}.tar.gz \
-            --exclude='.git' \
-            --exclude='.venv' \
-            --exclude='__pycache__' \
+          # Create a clean directory for packaging
+          mkdir -p release-package
+          
+          # Copy files to release package, excluding problematic files
+          rsync -av \
+            --exclude='.git/' \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
             --exclude='*.pyc' \
-            .
+            --exclude='*.pyo' \
+            --exclude='*.log' \
+            --exclude='*.tmp' \
+            --exclude='.pytest_cache/' \
+            --exclude='.coverage' \
+            --exclude='htmlcov/' \
+            --exclude='dist/' \
+            --exclude='build/' \
+            --exclude='*.egg-info/' \
+            --exclude='node_modules/' \
+            --exclude='.DS_Store' \
+            --exclude='Thumbs.db' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='release-package/' \
+            . release-package/
+          
+          # Create tar archive from the clean copy
+          cd release-package
+          tar -czf ../pubg-tracker-${{ steps.version.outputs.VERSION }}.tar.gz .
 
       - name: Upload Release Asset (for releases)
         if: github.event_name == 'release'
